@@ -1,98 +1,254 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { ThemedText } from "@/components/themed-text";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Heart, History, Search } from "lucide-react-native";
+import React, { useState } from "react";
+import {
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const PEOPLE_DATA = [
+  { id: "1", name: "Lara", initials: "L" },
+  { id: "2", name: "Neha", initials: "N" },
+  { id: "3", name: "Bhai", initials: "B" },
+  { id: "4", name: "Emma", initials: "E" },
+];
+
+const MOMENTS_DATA = [
+  { id: "1", title: "Moment 1" },
+  { id: "2", title: "Moment 2" },
+  { id: "3", title: "Moment 3" },
+];
+
+const PLACES_DATA = [
+  { id: "1", name: "Beach" },
+  { id: "2", name: "Mountain" },
+];
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const colorScheme = useColorScheme();
+  const [activeTab, setActiveTab] = useState<"favorites" | "history">();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
+  const PersonCard = ({ item }: { item: (typeof PEOPLE_DATA)[0] }) => (
+    <View style={styles.personCard}>
+      <View style={[styles.avatar, { backgroundColor: getRandomColor() }]}>
+        <ThemedText type="defaultSemiBold" style={styles.avatarText}>
+          {item.initials}
         </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      </View>
+      <ThemedText style={styles.personName}>{item.name}</ThemedText>
+    </View>
+  );
+
+  const MomentCard = () => <View style={styles.momentCard} />;
+
+  const PlaceCard = ({ item }: { item: (typeof PLACES_DATA)[0] }) => (
+    <View style={styles.placeCard}>
+      <ThemedText style={{ color: "#fff", fontSize: 18, fontWeight: "bold" }}>
+        {item.name}
+      </ThemedText>
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header with Search */}
+        <View style={styles.header}>
+          <View
+            style={[
+              styles.searchBar,
+              { backgroundColor: Colors[colorScheme ?? "light"].background },
+            ]}
+          >
+            <Search />
+            <TextInput
+              placeholder="Search"
+              style={styles.searchInput}
+              placeholderTextColor={
+                Colors[colorScheme ?? "light"].tabIconDefault
+              }
+            />
+          </View>
+        </View>
+
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            onPress={() => setActiveTab("favorites")}
+            style={[styles.tab, activeTab === "favorites" && styles.activeTab]}
+          >
+            <Heart />
+            <ThemedText style={styles.tabText}>Favorites</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setActiveTab("history")}
+            style={[styles.tab, activeTab === "history" && styles.activeTab]}
+          >
+            <History />
+            <ThemedText style={styles.tabText}>History</ThemedText>
+          </TouchableOpacity>
+        </View>
+
+        {/* People Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="subtitle">People</ThemedText>
+            <ThemedText style={{ fontSize: 18 }}>›</ThemedText>
+          </View>
+          <FlatList
+            data={PEOPLE_DATA}
+            renderItem={({ item }) => <PersonCard item={item} />}
+            keyExtractor={(item) => item.id}
+            horizontal={true}
+            contentContainerStyle={styles.flatListContent}
+            showsHorizontalScrollIndicator={false}
+          />
+        </View>
+
+        {/* Curated Moments Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="subtitle">Curated Moments</ThemedText>
+            <ThemedText style={{ fontSize: 18 }}>›</ThemedText>
+          </View>
+          <FlatList
+            data={MOMENTS_DATA}
+            renderItem={MomentCard}
+            keyExtractor={(item) => item.id}
+            horizontal
+            contentContainerStyle={styles.flatListContent}
+            showsHorizontalScrollIndicator={false}
+          />
+        </View>
+
+        {/* Places Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ThemedText type="subtitle">Places</ThemedText>
+            <ThemedText style={{ fontSize: 18 }}>›</ThemedText>
+          </View>
+          <FlatList
+            data={PLACES_DATA}
+            renderItem={({ item }) => <PlaceCard item={item} />}
+            keyExtractor={(item) => item.id}
+            horizontal
+            contentContainerStyle={styles.flatListContent}
+            showsHorizontalScrollIndicator={false}
+          />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
+function getRandomColor() {
+  const colors = ["#FF6B6B", "#4ECDC4", "#FFD93D", "#95E1D3"];
+  return colors[Math.floor(Math.random() * colors.length)];
+}
+
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    height: 40,
     gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  searchIcon: {
+    fontSize: 18,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#000",
+  },
+  tabsContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    gap: 12,
+    marginVertical: 8,
+  },
+  tab: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    gap: 4,
+    borderRadius: 20,
+  },
+  activeTab: {
+    borderWidth: 2,
+    borderColor: "#000",
+  },
+  tabText: {
+    fontSize: 14,
+  },
+  section: {
+    paddingHorizontal: 16,
+    marginTop: 16,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  flatListContent: {
+    gap: 12,
+  },
+  personCard: {
+    alignItems: "center",
+    gap: 8,
+  },
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: 24,
+    color: "#fff",
+  },
+  personName: {
+    fontSize: 12,
+    textAlign: "center",
+  },
+  momentCard: {
+    width: 300,
+    height: 150,
+    borderRadius: 12,
+    backgroundColor: "#FFB6C1",
+  },
+  placeCard: {
+    width: 300,
+    height: 150,
+    borderRadius: 12,
+    backgroundColor: "#FF8C42",
+    justifyContent: "flex-end",
+    padding: 12,
   },
 });
