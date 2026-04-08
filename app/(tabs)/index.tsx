@@ -2,16 +2,22 @@ import { ThemedText } from "@/components/themed-text";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Heart, History, Search } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FlatList,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
+import { Image } from "expo-image";
+import * as MediaLibrary from "expo-media-library";
+import { getFavoritePhotos } from "../../components/db";
 
 const PEOPLE_DATA = [
   { id: "1", name: "Lara", initials: "L" },
@@ -32,8 +38,31 @@ const PLACES_DATA = [
 ];
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const isFocused = useIsFocused();
   const colorScheme = useColorScheme();
-  const [activeTab, setActiveTab] = useState<"favorites" | "history">();
+  const [activeTab, setActiveTab] = useState<"favorites" | "history">("history");
+  const [favorites, setFavorites] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (activeTab === "favorites" && isFocused) {
+      (async () => {
+        const favs = await getFavoritePhotos();
+        const enriched = await Promise.all(
+          favs.map(async (meta) => {
+            try {
+              const asset = await MediaLibrary.getAssetInfoAsync(meta.id);
+              if (!asset) return null;
+              return { ...asset, title: meta.title, isLiked: true };
+            } catch (e) {
+              return null;
+            }
+          })
+        );
+        setFavorites(enriched.filter(Boolean));
+      })();
+    }
+  }, [activeTab, isFocused]);
 
   const PersonCard = ({ item }: { item: (typeof PEOPLE_DATA)[0] }) => (
     <View style={styles.personCard}>
@@ -64,21 +93,18 @@ export default function HomeScreen() {
       >
         {/* Header with Search */}
         <View style={styles.header}>
-          <View
+          <TouchableOpacity
             style={[
               styles.searchBar,
               { backgroundColor: Colors[colorScheme ?? "light"].background },
             ]}
+            onPress={() => router.push("/search")}
           >
-            <Search />
-            <TextInput
-              placeholder="Search"
-              style={styles.searchInput}
-              placeholderTextColor={
-                Colors[colorScheme ?? "light"].tabIconDefault
-              }
-            />
-          </View>
+            <Search color={Colors[colorScheme ?? "light"].tabIconDefault} />
+            <Text style={[styles.searchInput, { color: Colors[colorScheme ?? "light"].tabIconDefault }]}>
+              Search memories, places...
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Tabs */}
@@ -99,53 +125,94 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* People Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ThemedText type="subtitle">People</ThemedText>
-            <ThemedText style={{ fontSize: 18 }}>›</ThemedText>
+        {activeTab === "favorites" ? (
+          <View style={[styles.section, { paddingBottom: 40 }]}>
+            {favorites.length === 0 ? (
+              <ThemedText style={{ textAlign: "center", marginTop: 40, opacity: 0.5 }}>
+                No favorites yet.
+              </ThemedText>
+            ) : (
+              <FlatList
+                data={favorites}
+                numColumns={2}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                columnWrapperStyle={{ gap: 12, marginBottom: 12 }}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.favoriteCard}
+                    onPress={() => {
+                      router.push({
+                        pathname: "/EventsListDetails",
+                        params: {
+                          item: JSON.stringify({
+                            key: item.id,
+                            poster: item.uri,
+                            title: item.title || "Favorite Memory",
+                            location: "Gallery",
+                            date: new Date(item.creationTime).toLocaleDateString(),
+                          }),
+                        },
+                      });
+                    }}
+                  >
+                    <Image source={{ uri: item.uri }} style={styles.favoriteImage} />
+                  </TouchableOpacity>
+                )}
+              />
+            )}
           </View>
-          <FlatList
-            data={PEOPLE_DATA}
-            renderItem={({ item }) => <PersonCard item={item} />}
-            keyExtractor={(item) => item.id}
-            horizontal={true}
-            contentContainerStyle={styles.flatListContent}
-            showsHorizontalScrollIndicator={false}
-          />
-        </View>
+        ) : (
+          <>
+            {/* People Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <ThemedText type="subtitle">People</ThemedText>
+                <ThemedText style={{ fontSize: 18 }}>›</ThemedText>
+              </View>
+              <FlatList
+                data={PEOPLE_DATA}
+                renderItem={({ item }) => <PersonCard item={item} />}
+                keyExtractor={(item) => item.id}
+                horizontal={true}
+                contentContainerStyle={styles.flatListContent}
+                showsHorizontalScrollIndicator={false}
+              />
+            </View>
 
-        {/* Curated Moments Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ThemedText type="subtitle">Curated Moments</ThemedText>
-            <ThemedText style={{ fontSize: 18 }}>›</ThemedText>
-          </View>
-          <FlatList
-            data={MOMENTS_DATA}
-            renderItem={MomentCard}
-            keyExtractor={(item) => item.id}
-            horizontal
-            contentContainerStyle={styles.flatListContent}
-            showsHorizontalScrollIndicator={false}
-          />
-        </View>
+            {/* Curated Moments Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <ThemedText type="subtitle">Curated Moments</ThemedText>
+                <ThemedText style={{ fontSize: 18 }}>›</ThemedText>
+              </View>
+              <FlatList
+                data={MOMENTS_DATA}
+                renderItem={MomentCard}
+                keyExtractor={(item) => item.id}
+                horizontal
+                contentContainerStyle={styles.flatListContent}
+                showsHorizontalScrollIndicator={false}
+              />
+            </View>
 
-        {/* Places Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <ThemedText type="subtitle">Places</ThemedText>
-            <ThemedText style={{ fontSize: 18 }}>›</ThemedText>
-          </View>
-          <FlatList
-            data={PLACES_DATA}
-            renderItem={({ item }) => <PlaceCard item={item} />}
-            keyExtractor={(item) => item.id}
-            horizontal
-            contentContainerStyle={styles.flatListContent}
-            showsHorizontalScrollIndicator={false}
-          />
-        </View>
+            {/* Places Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <ThemedText type="subtitle">Places</ThemedText>
+                <ThemedText style={{ fontSize: 18 }}>›</ThemedText>
+              </View>
+              <FlatList
+                data={PLACES_DATA}
+                renderItem={({ item }) => <PlaceCard item={item} />}
+                keyExtractor={(item) => item.id}
+                horizontal
+                contentContainerStyle={styles.flatListContent}
+                showsHorizontalScrollIndicator={false}
+              />
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -250,5 +317,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF8C42",
     justifyContent: "flex-end",
     padding: 12,
+  },
+  favoriteCard: {
+    flex: 1,
+    height: 200,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  favoriteImage: {
+    width: "100%",
+    height: "100%",
   },
 });

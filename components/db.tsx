@@ -144,3 +144,11 @@ export const searchByKeyword = async (text: string): Promise<string[]> => {
 
     return results.map((r) => r.id);
 };
+
+export const getFavoritePhotos = async (): Promise<PhotoMetadata[]> => {
+    const db = await SQLite.openDatabaseAsync(DB_NAME);
+    const results = await db.getAllAsync<PhotoMetadata>(
+        `SELECT * FROM photos WHERE isLiked = 1`
+    );
+    return results;
+};
