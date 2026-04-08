@@ -1,32 +1,33 @@
-import { AntDesign, EvilIcons, Feather, Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
+import { AntDesign, EvilIcons, Feather, Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React from "react";
 import {
-    Animated,
-    Dimensions,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+  Animated,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import * as Animatable from "react-native-animatable";
 import {
-    Directions,
-    FlingGestureHandler,
-    GestureHandlerRootView,
-    State,
-} from 'react-native-gesture-handler';
+  Directions,
+  FlingGestureHandler,
+  GestureHandlerRootView,
+  State,
+} from "react-native-gesture-handler";
 // @ts-ignore: no types available
-import * as Animatable from 'react-native-animatable';
-// @ts-ignore: no types available
-import { SharedElement } from 'react-navigation-shared-element';
+import { SharedElement } from "react-navigation-shared-element";
+
+// Import your DB helpers
+import { getPhotoMetadata, updatePhotoMetadata } from "../components/db";
 
 const SPACING = 16;
-const { height, width } = Dimensions.get('window');
+const { height, width } = Dimensions.get("window");
 const BOTTOM_SHEET_HEIGHT = height * 0.52;
-
 const DELAY = 300;
 const DURATION = 500;
 
@@ -52,60 +53,98 @@ const EventsListDetails: React.FC = () => {
   const params = useLocalSearchParams();
   const router = useRouter();
 
+  const item: EventItem =
+    typeof params.item === "string" ? JSON.parse(params.item) : params.item;
 
   const [liked, setLiked] = React.useState(false);
-  const [textNote, setTextNote] = React.useState('');
+  const [textNote, setTextNote] = React.useState("");
+  const [displayTitle, setDisplayTitle] = React.useState(item.title); // State for Title
   const [editingText, setEditingText] = React.useState(false);
-  const [hasVoice] = React.useState(false); // replace with real recording logic
+  const [editingTitle, setEditingTitle] = React.useState(false); // State for Title Editing
   const [isPlaying, setIsPlaying] = React.useState(false);
-  const [people] = React.useState<Person[]>([{ id: '1' }]);
+  const [hasVoice] = React.useState(false);
+  const [people] = React.useState<Person[]>([{ id: "1" }]);
 
- 
   const sheetY = React.useRef(new Animated.Value(BOTTOM_SHEET_HEIGHT)).current;
 
   React.useEffect(() => {
+    const loadMetadata = async () => {
+      const meta = await getPhotoMetadata(item.key);
+      if (meta) {
+        setLiked(meta.isLiked === 1);
+        setTextNote(meta.note || "");
+        if (meta.title) setDisplayTitle(meta.title);
+      }
+    };
+
+    loadMetadata();
+
     Animated.spring(sheetY, {
       toValue: 0,
       useNativeDriver: true,
       delay: DELAY,
       bounciness: 12,
     }).start();
-  }, []);
+  }, [item.key]);
 
-  if (!params.item) return null;
+  const saveToDb = async (
+    newLiked: boolean,
+    newNote: string,
+    newTitle: string,
+  ) => {
+    await updatePhotoMetadata(item.key, {
+      isLiked: newLiked ? 1 : 0,
+      note: newNote,
+      title: newTitle,
+    });
+  };
 
-  const item: EventItem =
-    typeof params.item === 'string' ? JSON.parse(params.item) : params.item;
+  const toggleLike = async () => {
+    const nextLiked = !liked;
+    setLiked(nextLiked);
+    await saveToDb(nextLiked, textNote, displayTitle);
+  };
 
-  const isLabelled = textNote.trim().length > 0 || hasVoice;
+  const handleFinishNoteEditing = async () => {
+    setEditingText(false);
+    await saveToDb(liked, textNote, displayTitle);
+  };
+
+  const handleFinishTitleEditing = async () => {
+    setEditingTitle(false);
+    await saveToDb(liked, textNote, displayTitle);
+  };
 
   const close = () => {
-    router.replace('/(tabs)/swipe');
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/swipe");
+    }
   };
 
   const onSwipeUp = (ev: any) => {
     if (ev.nativeEvent.state === State.END) close();
   };
 
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <FlingGestureHandler direction={Directions.UP} onHandlerStateChange={onSwipeUp}>
-        <View style={{ flex: 1, backgroundColor: '#000' }}>
-
-          {/* ── Full-screen image ── */}
+      <FlingGestureHandler
+        direction={Directions.UP}
+        onHandlerStateChange={onSwipeUp}
+      >
+        <View style={{ flex: 1, backgroundColor: "#000" }}>
           <SharedElement
             id={`item.${item.key}.image`}
             style={StyleSheet.absoluteFillObject}
-            key={`details-image-${item.key}`}
           >
             <Image
               source={{ uri: item.poster }}
-              style={[StyleSheet.absoluteFillObject, { resizeMode: 'cover' }]}
+              style={[StyleSheet.absoluteFillObject]}
+              contentFit="cover"
             />
           </SharedElement>
 
-          {/* ── Dark overlay ── */}
           <Animatable.View
             animation="fadeIn"
             duration={DURATION * 2}
@@ -113,11 +152,10 @@ const EventsListDetails: React.FC = () => {
             useNativeDriver
             style={[
               StyleSheet.absoluteFillObject,
-              { backgroundColor: 'rgba(0,0,0,0.25)' },
+              { backgroundColor: "rgba(0,0,0,0.25)" },
             ]}
           />
 
-          {/* ── Top bar: back + like ── */}
           <Animatable.View
             animation={fadeInBottom}
             duration={DURATION}
@@ -128,43 +166,67 @@ const EventsListDetails: React.FC = () => {
             <TouchableOpacity onPress={close} style={styles.iconBtn}>
               <Ionicons name="arrow-back" size={22} color="#fff" />
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setLiked((v) => !v)}
-              style={styles.iconBtn}
-            >
+
+            <TouchableOpacity onPress={toggleLike} style={styles.iconBtn}>
               <Ionicons
-                name={liked ? 'heart' : 'heart-outline'}
+                name={liked ? "heart" : "heart-outline"}
                 size={22}
-                color={liked ? '#ff4d6d' : '#fff'}
+                color={liked ? "#ff4d6d" : "#fff"}
               />
             </TouchableOpacity>
           </Animatable.View>
 
-          {/* ── Bottom sheet ── */}
           <Animated.View
-            style={[
-              styles.sheet,
-              { transform: [{ translateY: sheetY }] },
-            ]}
+            style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}
           >
-            {/* drag handle */}
             <View style={styles.handle} />
 
             <ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 32 }}
             >
-              {/* title / location / date */}
-              <Animatable.Text
+              {/* EDITABLE TITLE */}
+              <Animatable.View
                 animation={fadeInBottom}
                 duration={DURATION}
                 delay={DELAY + 100}
                 useNativeDriver
-                style={styles.title}
-                numberOfLines={1}
               >
-                {item.title}
-              </Animatable.Text>
+                {editingTitle ? (
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      autoFocus
+                      value={displayTitle}
+                      onChangeText={setDisplayTitle}
+                      onBlur={handleFinishTitleEditing}
+                      style={[
+                        styles.title,
+                        {
+                          borderBottomWidth: 1,
+                          borderBottomColor: "#eee",
+                          flex: 1,
+                        },
+                      ]}
+                    />
+                    <TouchableOpacity
+                      onPress={handleFinishTitleEditing}
+                      style={styles.saveTickBtn}
+                    >
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={32}
+                        color="#4CAF50"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => setEditingTitle(true)}>
+                    <Text style={styles.title} numberOfLines={1}>
+                      {displayTitle}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </Animatable.View>
 
               <Animatable.View
                 animation={fadeInBottom}
@@ -175,38 +237,12 @@ const EventsListDetails: React.FC = () => {
               >
                 <EvilIcons name="location" size={16} color="#555" />
                 <Text style={styles.metaText}>{item.location}</Text>
-                <Text style={[styles.metaText, { marginLeft: 'auto' }]}>
+                <Text style={[styles.metaText, { marginLeft: "auto" }]}>
                   {item.date}
                 </Text>
               </Animatable.View>
 
-              {/* ── LABELLED: show voice player ── */}
-              {isLabelled && hasVoice && (
-                <Animatable.View
-                  animation={fadeInBottom}
-                  duration={DURATION}
-                  delay={DELAY + 250}
-                  useNativeDriver
-                  style={styles.playerRow}
-                >
-                  <Text style={styles.playerLabel}>Recording #1</Text>
-                  <View style={styles.progressBar}>
-                    <View style={styles.progressFill} />
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => setIsPlaying((v) => !v)}
-                    style={styles.playBtn}
-                  >
-                    <Ionicons
-                      name={(isPlaying ? 'ios-pause' : 'ios-play') as any}
-                      size={32}
-                      color="#222"
-                    />
-                  </TouchableOpacity>
-                </Animatable.View>
-              )}
-
-              {/* ── Attach Text ── */}
+              {/* ATTACH TEXT BOX */}
               <Animatable.View
                 animation={fadeInBottom}
                 duration={DURATION}
@@ -215,20 +251,36 @@ const EventsListDetails: React.FC = () => {
                 style={styles.attachRow}
               >
                 <View style={styles.attachLeft}>
-                  <Feather name="edit-2" size={18} color="#888" style={{ marginRight: 10 }} />
+                  <Feather
+                    name="edit-2"
+                    size={18}
+                    color="#888"
+                    style={{ marginRight: 10 }}
+                  />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.attachLabel}>Attach Text</Text>
                     {editingText ? (
-                      <TextInput
-                        autoFocus
-                        multiline
-                        value={textNote}
-                        onChangeText={setTextNote}
-                        onBlur={() => setEditingText(false)}
-                        style={styles.textInput}
-                        placeholder="A picture keeps the scene — your words keep the feeling"
-                        placeholderTextColor="#bbb"
-                      />
+                      <View style={styles.inputContainer}>
+                        <TextInput
+                          autoFocus
+                          multiline
+                          value={textNote}
+                          onChangeText={setTextNote}
+                          onBlur={handleFinishNoteEditing}
+                          style={styles.textInput}
+                          placeholder="A picture keeps the scene — your words keep the feeling"
+                        />
+                        <TouchableOpacity
+                          onPress={handleFinishNoteEditing}
+                          style={styles.saveTickBtn}
+                        >
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={26}
+                            color="#888"
+                          />
+                        </TouchableOpacity>
+                      </View>
                     ) : (
                       <TouchableOpacity onPress={() => setEditingText(true)}>
                         <Text
@@ -239,7 +291,7 @@ const EventsListDetails: React.FC = () => {
                           numberOfLines={3}
                         >
                           {textNote ||
-                            'A picture keeps the scene — your words keep the feeling'}
+                            "A picture keeps the scene — your words keep the feeling"}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -249,7 +301,6 @@ const EventsListDetails: React.FC = () => {
 
               <View style={styles.divider} />
 
-              {/* ── Attach Voice ── */}
               <Animatable.View
                 animation={fadeInBottom}
                 duration={DURATION}
@@ -258,13 +309,18 @@ const EventsListDetails: React.FC = () => {
                 style={styles.attachRow}
               >
                 <View style={styles.attachLeft}>
-                  <Ionicons name="mic-outline" size={20} color="#888" style={{ marginRight: 10 }} />
+                  <Ionicons
+                    name="mic-outline"
+                    size={20}
+                    color="#888"
+                    style={{ marginRight: 10 }}
+                  />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.attachLabel}>Attach Voice</Text>
                     <Text style={styles.attachPlaceholder}>
                       {hasVoice
-                        ? 'Recording #1 — tap to play'
-                        : 'Some memories deserve to be heard, not just written.'}
+                        ? "Recording #1 — tap to play"
+                        : "Some memories deserve to be heard, not just written."}
                     </Text>
                   </View>
                 </View>
@@ -275,7 +331,6 @@ const EventsListDetails: React.FC = () => {
 
               <View style={styles.divider} />
 
-              {/* ── People ── */}
               <Animatable.View
                 animation={fadeInBottom}
                 duration={DURATION}
@@ -318,31 +373,24 @@ const EventsListDetails: React.FC = () => {
   );
 };
 
-
-(EventsListDetails as any).sharedElements = (
-  route: any,
-) => {
+(EventsListDetails as any).sharedElements = (route: any) => {
   const params = route?.params;
   if (!params?.item) return [];
   const item: EventItem =
-    typeof params.item === 'string' ? JSON.parse(params.item) : params.item;
-  return [
-    { id: `item.${item.key}.image` },
-    { id: 'general.bg' },
-  ];
+    typeof params.item === "string" ? JSON.parse(params.item) : params.item;
+  return [{ id: `item.${item.key}.image` }, { id: "general.bg" }];
 };
 
 export default EventsListDetails;
 
-
 const styles = StyleSheet.create({
   topBar: {
-    position: 'absolute',
+    position: "absolute",
     top: 52,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingHorizontal: SPACING,
     zIndex: 10,
   },
@@ -350,143 +398,124 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   sheet: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: BOTTOM_SHEET_HEIGHT,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: SPACING * 1.5,
     paddingTop: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 16,
   },
   handle: {
-    alignSelf: 'center',
+    alignSelf: "center",
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#ddd',
+    backgroundColor: "#ddd",
     marginBottom: 16,
   },
   title: {
     fontSize: 26,
-    fontWeight: '900',
-    textTransform: 'uppercase',
+    fontWeight: "900",
+    textTransform: "uppercase",
     letterSpacing: -0.5,
-    color: '#111',
+    color: "#111",
     marginBottom: 6,
+    paddingVertical: 4,
   },
   metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
   },
   metaText: {
     fontSize: 13,
-    color: '#555',
+    color: "#555",
     marginLeft: 2,
   },
-  playerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    gap: 10,
-  },
-  playerLabel: {
-    fontSize: 12,
-    color: '#555',
-    width: 80,
-  },
-  progressBar: {
-    flex: 1,
-    height: 4,
-    backgroundColor: '#ddd',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    width: '35%',
-    height: '100%',
-    backgroundColor: '#333',
-    borderRadius: 2,
-  },
-  playBtn: {
-    marginLeft: 4,
-  },
   attachRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 14,
   },
   attachLeft: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     flex: 1,
   },
   attachLabel: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#222',
+    fontWeight: "700",
+    color: "#222",
     marginBottom: 3,
   },
   attachPlaceholder: {
     fontSize: 12,
-    color: '#bbb',
+    color: "#bbb",
     lineHeight: 18,
   },
   attachValue: {
-    color: '#444',
+    color: "#444",
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   textInput: {
+    flex: 1,
     fontSize: 12,
-    color: '#444',
+    color: "#444",
     lineHeight: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: "#eee",
     paddingVertical: 4,
     minHeight: 40,
+  },
+  saveTickBtn: {
+    paddingLeft: 10,
+    justifyContent: "center",
   },
   micBtn: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#f0f0f0',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#f0f0f0",
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: 8,
   },
   divider: {
     height: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
   },
   peopleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   avatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#eee',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    backgroundColor: "#eee",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   avatarImg: {
     width: 36,
@@ -497,8 +526,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#f0f0f0',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#f0f0f0",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

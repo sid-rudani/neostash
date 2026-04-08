@@ -1,227 +1,218 @@
-/**
- *
- * Inspiration: https://dribbble.com/shots/3731362-Event-cards-iOS-interaction
- */
-
-import { EvilIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import * as React from 'react';
+import { EvilIcons } from "@expo/vector-icons";
+import { useIsFocused } from "@react-navigation/native";
+import { Image } from "expo-image";
+import * as MediaLibrary from "expo-media-library";
+import { useRouter } from "expo-router";
+import * as React from "react";
 import {
-    Animated,
-    Dimensions,
-    FlatList,
-    Image,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from 'react-native';
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import {
-    Directions,
-    FlingGestureHandler,
-    GestureHandlerRootView,
-    State,
-} from 'react-native-gesture-handler';
-import { SafeAreaView } from 'react-native-safe-area-context';
-// @ts-ignore: shared element types missing
-import { SharedElement } from 'react-navigation-shared-element';
-const { width, height } = Dimensions.get('screen');
+  Directions,
+  FlingGestureHandler,
+  GestureHandlerRootView,
+  State,
+} from "react-native-gesture-handler";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  getPhotoMetadata,
+  initDb,
+  syncAllAssetsToDb,
+} from "../../components/db";
 
-// Types
-interface PhotoItem {
-  key: string;
-  title: string;
-  location: string;
-  date: string;
-  poster: string;
-}
-
-
-
-interface OverflowItemsProps {
-  data: PhotoItem[];
-  scrollXAnimated: Animated.Value;
-}
-
-// https://www.creative-flyers.com
-const DATA: PhotoItem[] = [
-  {
-    key:'1',
-    title: 'Afro vibes',
-
-    location: 'Mumbai, India',
-    date: 'Nov 17th, 2020',
-    poster:
-      'https://www.creative-flyers.com/wp-content/uploads/2020/07/Afro-vibes-flyer-template.jpg',
-  },
-  {
-      key:'2',
-    title: 'Jungle Party',
-    location: 'Unknown',
-    date: 'Sept 3rd, 2020',
-    poster:
-      'https://www.creative-flyers.com/wp-content/uploads/2019/11/Jungle-Party-Flyer-Template-1.jpg',
-  },
-  {
-    key:'3',
-    title: '4th Of July',
-    location: 'New York, USA',
-    date: 'Oct 11th, 2020',
-    poster:
-      'https://www.creative-flyers.com/wp-content/uploads/2020/06/4th-Of-July-Invitation.jpg',
-  },
-  {
-    key:'4',
-    title: 'Summer festival',
-    location: 'Bucharest, Romania',
-    date: 'Aug 17th, 2020',
-    poster:
-      'https://www.creative-flyers.com/wp-content/uploads/2020/07/Summer-Music-Festival-Poster.jpg',
-  },
-  {
-    key:'5',
-    title: 'BBQ with friends',
-    location: 'Prague, Czech Republic',
-    date: 'Sept 11th, 2020',
-    poster:
-      'https://www.creative-flyers.com/wp-content/uploads/2020/06/BBQ-Flyer-Psd-Template.jpg',
-  },
-  {
-    key:'6',
-    title: 'Festival music',
-    location: 'Berlin, Germany',
-    date: 'Apr 21th, 2021',
-    poster:
-      'https://www.creative-flyers.com/wp-content/uploads/2020/06/Festival-Music-PSD-Template.jpg',
-  },
-  {
-    key:'7',
-    title: 'Beach House',
-    location: 'Liboa, Portugal',
-    date: 'Aug 12th, 2020',
-    poster:
-      'https://www.creative-flyers.com/wp-content/uploads/2020/06/Summer-Beach-House-Flyer.jpg',
-  },
-];
-
-const OVERFLOW_HEIGHT = 70;
-const SPACING = 10;
+const { width } = Dimensions.get("screen");
 const ITEM_WIDTH = width * 0.76;
-const ITEM_HEIGHT = ITEM_WIDTH * 1.7;
-const VISIBLE_ITEMS = 3;
+const ITEM_HEIGHT = ITEM_WIDTH * 1.5;
+const OVERFLOW_HEIGHT = 80;
+const SPACING = 10;
+const PAGE_SIZE = 25;
 
-const OverflowItems: React.FC<OverflowItemsProps> = ({ data, scrollXAnimated }) => {
-  const inputRange = [-1, 0, 1];
-  const translateY = scrollXAnimated.interpolate({
-    inputRange,
-    outputRange: [OVERFLOW_HEIGHT, 0, -OVERFLOW_HEIGHT],
-  });
-  return (
-    <View style={styles.overflowContainer}>
-      <Animated.View style={{ transform: [{ translateY }] }}>
-        {data.map((item, index) => {
-          
-          return (
-            <View key={`${item.key}-${index}`} style={styles.itemContainer}>
-              <Text style={[styles.title]} numberOfLines={1}>
-                {item.title}
-              </Text>
-              <View style={styles.itemContainerRow}>
-                <Text style={[styles.location]}>
-                  <EvilIcons
-                    name='location'
-                    size={16}
-                    color='black'
-                    style={{ marginRight: 5 }}
-                  />
-                  {item.location}
-                </Text>
-                <Text style={[styles.date]}>{item.date}</Text>
-              </View>
-            </View>
-          );
-        })}
-      </Animated.View>
-    </View>
-  );
-};
-
-export default function SwipeScreen(): React.ReactElement {
+export default function SwipeScreen() {
   const router = useRouter();
-  const [data, setData] = React.useState<PhotoItem[]>(DATA);
-  const scrollXIndex = React.useRef(new Animated.Value(0)).current;
-  const scrollXAnimated = React.useRef(new Animated.Value(-1)).current;
+  const isFocused = useIsFocused();
+  const [data, setData] = React.useState<any[]>([]);
+  const [isIndexing, setIsIndexing] = React.useState(true);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false); // To prevent duplicate calls
   const [index, setIndex] = React.useState(0);
-  
-  const setActiveIndex = React.useCallback((activeIndex: number) => {
-    scrollXIndex.setValue(activeIndex);
-    setIndex(activeIndex);
-  }, [scrollXIndex]);
 
-  React.useEffect(() => {
-    if (index === data.length - VISIBLE_ITEMS - 1) {
-      
-      const suffix = data.length;
-      const more = data.map((d, i) => ({
-        ...d,
-        key: `${d.key}-${suffix + i}`,
-      }));
-      setData([...data, ...more]);
-    }
-  });
+  // Pagination tracking
+  const [endCursor, setEndCursor] = React.useState<string | undefined>(
+    undefined,
+  );
+  const [hasNextPage, setHasNextPage] = React.useState(true);
+
+  const scrollXIndex = React.useRef(new Animated.Value(0)).current;
+  const scrollXAnimated = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     Animated.spring(scrollXAnimated, {
       toValue: scrollXIndex,
       useNativeDriver: true,
     }).start();
-  });
+  }, [index]);
+
+  /**
+   * Fetch and Enrich Batch Logic
+   */
+  const fetchAndProcessBatch = async (after?: string) => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+
+    const media = await MediaLibrary.getAssetsAsync({
+      mediaType: MediaLibrary.MediaType.photo,
+      sortBy: MediaLibrary.SortBy.creationTime,
+      first: PAGE_SIZE,
+      after,
+    });
+
+    // 1. Sync new IDs to DB for searchability
+    const newIds = media.assets.map((a) => a.id);
+    await syncAllAssetsToDb(newIds);
+
+    // 2. Enrich with DB Metadata
+    const enriched = await Promise.all(
+      media.assets.map(async (asset) => {
+        const meta = await getPhotoMetadata(asset.id);
+        return {
+          ...asset,
+          isLiked: meta?.isLiked === 1,
+          title: meta?.title || "",
+        };
+      }),
+    );
+
+    // 3. Update States
+    setData((prev) => [...prev, ...enriched]);
+    setEndCursor(media.endCursor);
+    setHasNextPage(media.hasNextPage);
+    setIsLoadingMore(false);
+  };
+
+  const initializeApp = async () => {
+    await initDb();
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Denied", "Gallery access is required.");
+      return;
+    }
+    await fetchAndProcessBatch();
+    setIsIndexing(false);
+  };
+
+  React.useEffect(() => {
+    initializeApp();
+  }, []);
+
+  // Sync DB updates when returning to screen
+  React.useEffect(() => {
+    const syncData = async () => {
+      if (isFocused && data.length > 0) {
+        const updatedData = await Promise.all(
+          data.map(async (asset) => {
+            const meta = await getPhotoMetadata(asset.id);
+            return {
+              ...asset,
+              isLiked: meta?.isLiked === 1,
+              title: meta?.title || "",
+            };
+          }),
+        );
+        setData(updatedData);
+      }
+    };
+    syncData();
+  }, [isFocused]);
+
+  /**
+   * Endless Logic: Check if we need to load more when index changes
+   */
+  const setActiveIndex = React.useCallback(
+    (i: number) => {
+      scrollXIndex.setValue(i);
+      setIndex(i);
+
+      // If we are 5 cards away from the end, fetch the next page
+      if (hasNextPage && i >= data.length - 5 && !isLoadingMore) {
+        console.log("Fetching next batch...");
+        fetchAndProcessBatch(endCursor);
+      }
+    },
+    [data.length, hasNextPage, endCursor, isLoadingMore],
+  );
+
+  if (isIndexing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#000" />
+        <Text style={{ marginTop: 10 }}>Opening your vault...</Text>
+      </View>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <FlingGestureHandler
-        key='left'
         direction={Directions.LEFT}
         onHandlerStateChange={(ev) => {
-          if (ev.nativeEvent.state === State.END) {
-            if (index === data.length - 1) {
-              return;
-            }
+          if (ev.nativeEvent.state === State.END && index < data.length - 1)
             setActiveIndex(index + 1);
-          }
         }}
       >
         <FlingGestureHandler
-          key='right'
           direction={Directions.RIGHT}
           onHandlerStateChange={(ev) => {
-            if (ev.nativeEvent.state === State.END) {
-              if (index === 0) {
-                return;
-              }
+            if (ev.nativeEvent.state === State.END && index > 0)
               setActiveIndex(index - 1);
-            }
           }}
         >
           <SafeAreaView style={styles.container}>
             <StatusBar hidden />
-            <OverflowItems data={data} scrollXAnimated={scrollXAnimated} />
-            <FlatList<PhotoItem>
+
+            <View style={styles.overflowContainer}>
+              <Animated.View
+                style={{
+                  transform: [
+                    {
+                      translateY: scrollXAnimated.interpolate({
+                        inputRange: [-1, 0, 1],
+                        outputRange: [OVERFLOW_HEIGHT, 0, -OVERFLOW_HEIGHT],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                {data.map((item, i) => (
+                  <View key={`${item.id}-${i}`} style={styles.itemContainer}>
+                    <Text style={styles.titleText}>
+                      {item.title || `Memory #${i + 1}`}
+                    </Text>
+                    <Text style={styles.dateText}>
+                      {new Date(item.creationTime).toLocaleDateString()}
+                    </Text>
+                  </View>
+                ))}
+              </Animated.View>
+            </View>
+
+            <FlatList
               data={data}
-              keyExtractor={(item, i)=>`${item.key}-${i}`}
+              keyExtractor={(item, i) => `${item.id}-${i}`}
               horizontal
               inverted
-              contentContainerStyle={{
-                flex: 1,
-                justifyContent: 'center',
-                padding: SPACING * 2,
-                marginTop: 50,
-              }}
               scrollEnabled={false}
-              removeClippedSubviews={false}
-              renderItem={({ item, index:i }) => {
-                const inputRange = [i - 1, i, i+ 1];
+              extraData={index}
+              contentContainerStyle={styles.flatListContent}
+              renderItem={({ item, index: i }) => {
+                const inputRange = [i - 1, i, i + 1];
                 const translateX = scrollXAnimated.interpolate({
                   inputRange,
                   outputRange: [50, 0, -100],
@@ -232,63 +223,63 @@ export default function SwipeScreen(): React.ReactElement {
                 });
                 const opacity = scrollXAnimated.interpolate({
                   inputRange,
-                  outputRange: [0, 1, 0],
+                  outputRange: [0.001, 1, 0.001],
                 });
-                
 
                 const zIndex = i === index ? 10 : 0;
-                const pointerEvents = i === index ? 'auto' : 'none';
+                const pointerEvents = i === index ? "auto" : "none";
+
+                // PERFORMANCE: Only render immediate neighbors
+                if (i > index + 2 || i < index - 1) return null;
+
                 return (
                   <Animated.View
-                    style={{
-                      position: 'absolute',
-                      left: -ITEM_WIDTH / 2,
-                      opacity,
-                      zIndex,
-                      transform: [
-                        {
-                          translateX,
-                        },
-                        { scale },
-                      ],
-                    }}
+                    style={[
+                      styles.cardContainer,
+                      {
+                        zIndex,
+                        opacity,
+                        transform: [{ translateX }, { scale }],
+                      },
+                    ]}
                     pointerEvents={pointerEvents}
                   >
-                    <TouchableOpacity activeOpacity={.9}
-                    onPress={() => {
-                      router.push({
-                        pathname: '/(tabs)/EventsListDetails',
-                        params: { item: JSON.stringify(item), key: `${item.key}-${Date.now()}` },
-                      });
-                    }}>
-                      <SharedElement id={`item.${item.key}.image`} key={`shared-${item.key}`}>
-                    <Image
-                      source={{ uri: item.poster }}
-                      style={{
-                        width: ITEM_WIDTH,
-                        height: ITEM_HEIGHT,
-                        borderRadius: 14,
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      onPress={() => {
+                        router.push({
+                          pathname: "/EventsListDetails",
+                          params: {
+                            item: JSON.stringify({
+                              key: item.id,
+                              poster: item.uri,
+                              title: item.title || `Memory #${i + 1}`,
+                              location: "Gallery",
+                              date: new Date(
+                                item.creationTime,
+                              ).toLocaleDateString(),
+                            }),
+                          },
+                        });
                       }}
-                    />
-                    </SharedElement>
+                    >
+                      <Image source={{ uri: item.uri }} style={styles.image} />
+                      {item.isLiked && (
+                        <View style={styles.heartBadge}>
+                          <EvilIcons name="heart" size={24} color="white" />
+                        </View>
+                      )}
                     </TouchableOpacity>
                   </Animated.View>
                 );
               }}
             />
-            <SharedElement id='general.bg' style={[StyleSheet.absoluteFillObject,{
-              transform:[{translateY:height}]
-            }]} key="general-bg">
-            <View style={
-                        [
-                            StyleSheet.absoluteFillObject,
-                            {
-                                backgroundColor:'#fff',
-                                borderRadius:16
-                            }
-                        ]
-                    }></View>
-            </SharedElement>
+            {/* Loading Indicator for next page */}
+            {isLoadingMore && (
+              <View style={styles.bottomLoader}>
+                <ActivityIndicator size="small" color="#999" />
+              </View>
+            )}
           </SafeAreaView>
         </FlingGestureHandler>
       </FlingGestureHandler>
@@ -297,34 +288,40 @@ export default function SwipeScreen(): React.ReactElement {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: -1,
-  },
-  location: {
-    fontSize: 16,
-  },
-  date: {
-    fontSize: 12,
+  container: { flex: 1, backgroundColor: "#fff" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  overflowContainer: {
+    height: OVERFLOW_HEIGHT,
+    overflow: "hidden",
+    marginTop: 20,
   },
   itemContainer: {
     height: OVERFLOW_HEIGHT,
-    padding: SPACING * 2,
+    paddingHorizontal: 20,
+    justifyContent: "center",
   },
-  itemContainerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  titleText: { fontSize: 24, fontWeight: "900", textTransform: "uppercase" },
+  dateText: { fontSize: 14, color: "#999" },
+  flatListContent: { flex: 1, justifyContent: "center", padding: 20 },
+  cardContainer: { position: "absolute", left: -ITEM_WIDTH / 2 },
+  image: {
+    width: ITEM_WIDTH,
+    height: ITEM_HEIGHT,
+    borderRadius: 14,
+    backgroundColor: "#eee",
   },
-  overflowContainer: {
-    height: OVERFLOW_HEIGHT,
-    overflow: 'hidden',
+  heartBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    backgroundColor: "#ff4d6d",
+    borderRadius: 20,
+    padding: 4,
+  },
+  bottomLoader: {
+    position: "absolute",
+    bottom: 40,
+    width: "100%",
+    alignItems: "center",
   },
 });
