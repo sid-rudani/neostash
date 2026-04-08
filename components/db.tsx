@@ -82,6 +82,7 @@ export const initDb = async () => {
 };
 
 export const syncAllAssetsToDb = async (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
     const db = await SQLite.openDatabaseAsync(DB_NAME);
 
     const statement = await db.prepareAsync(`
@@ -89,11 +90,11 @@ export const syncAllAssetsToDb = async (ids: string[]) => {
   `);
 
     try {
-        await db.withTransactionAsync(async () => {
-            for (const id of ids) {
-                await statement.executeAsync({ $id: id });
-            }
-        });
+        for (const id of ids) {
+            await statement.executeAsync({ $id: id });
+        }
+    } catch (e) {
+        console.log("Error syncing ids:", e);
     } finally {
         await statement.finalizeAsync();
     }

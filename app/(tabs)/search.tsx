@@ -44,32 +44,27 @@ const SearchScreen = () => {
       return;
     }
 
-    // 2. Fetch the actual Assets from MediaLibrary to get URIs
-    // We only fetch assets that match our SQLite results
-    const assets = await MediaLibrary.getAssetsAsync({
-      first: matchedIds.length,
-      // Note: In a production app with thousands of photos,
-      // you'd filter these specifically by ID or use a custom hook.
-    });
-
-    // Filter to only show assets found in the DB search
-    const filteredAssets = assets.assets.filter((a) =>
-      matchedIds.includes(a.id),
-    );
-
-    // 3. Enrich with Metadata (Likes/Titles)
+    // 2. Fetch the actual Assets from MediaLibrary to get URIs and Enrich with Metadata
     const enriched = await Promise.all(
-      filteredAssets.map(async (asset) => {
-        const meta = await getPhotoMetadata(asset.id);
-        return {
-          ...asset,
-          title: meta?.title || "Untitled",
-          isLiked: meta?.isLiked === 1,
-        };
-      }),
+      matchedIds.map(async (id) => {
+        try {
+          const asset: any = await MediaLibrary.getAssetInfoAsync(id);
+          if (!asset) return null;
+          
+          const meta = await getPhotoMetadata(id);
+          return {
+            ...asset,
+            title: meta?.title || "Untitled",
+            note: meta?.note || "",
+            isLiked: meta?.isLiked === 1,
+          };
+        } catch (e) {
+          return null;
+        }
+      })
     );
 
-    setResults(enriched);
+    setResults(enriched.filter(Boolean));
     setLoading(false);
   }, []);
 
@@ -126,9 +121,16 @@ const SearchScreen = () => {
             >
               <Image source={{ uri: item.uri }} style={styles.resultImage} />
               <View style={styles.cardOverlay}>
-                <Text style={styles.cardTitle} numberOfLines={1}>
-                  {item.title}
-                </Text>
+                <View style={{flex: 1, marginRight: 4}}>
+                   <Text style={styles.cardTitle} numberOfLines={1}>
+                     {item.title}
+                   </Text>
+                   {item.note ? (
+                     <Text style={styles.cardDesc} numberOfLines={1}>
+                       {item.note}
+                     </Text>
+                   ) : null}
+                </View>
                 {item.isLiked && (
                   <Ionicons name="heart" size={12} color="#ff4d6d" />
                 )}
@@ -231,7 +233,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#333",
-    flex: 1,
-    marginRight: 4,
+  },
+  cardDesc: {
+    fontSize: 10,
+    color: "#666",
+    marginTop: 2,
   },
 });
