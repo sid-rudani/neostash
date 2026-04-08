@@ -2,6 +2,7 @@ import { AntDesign, EvilIcons, Feather, Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
+import { useTheme } from "@/hooks/use-theme";
 import {
   Animated,
   Dimensions,
@@ -13,14 +14,14 @@ import {
   View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
+import Reanimated from "react-native-reanimated";
 import {
   Directions,
   FlingGestureHandler,
   GestureHandlerRootView,
   State,
 } from "react-native-gesture-handler";
-// @ts-ignore: no types available
-import { SharedElement } from "react-navigation-shared-element";
+// Removed legacy react-navigation-shared-element to fix build
 
 // Import your DB helpers
 import { getPhotoMetadata, updatePhotoMetadata } from "../components/db";
@@ -52,6 +53,7 @@ interface Person {
 const EventsListDetails: React.FC = () => {
   const params = useLocalSearchParams();
   const router = useRouter();
+  const theme = useTheme();
 
   const item: EventItem =
     typeof params.item === "string" ? JSON.parse(params.item) : params.item;
@@ -134,16 +136,12 @@ const EventsListDetails: React.FC = () => {
         onHandlerStateChange={onSwipeUp}
       >
         <View style={{ flex: 1, backgroundColor: "#000" }}>
-          <SharedElement
-            id={`item.${item.key}.image`}
-            style={StyleSheet.absoluteFillObject}
-          >
-            <Image
-              source={{ uri: item.poster }}
-              style={[StyleSheet.absoluteFillObject]}
-              contentFit="cover"
-            />
-          </SharedElement>
+          <Reanimated.Image
+            // @ts-ignore sharedTransitionTag is experimental/missing in Reanimated 4.1 typing
+            sharedTransitionTag={`item.${item.key}.image`}
+            source={{ uri: item.poster }}
+            style={[StyleSheet.absoluteFillObject]}
+          />
 
           <Animatable.View
             animation="fadeIn"
@@ -177,9 +175,9 @@ const EventsListDetails: React.FC = () => {
           </Animatable.View>
 
           <Animated.View
-            style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}
+            style={[styles.sheet, { transform: [{ translateY: sheetY }], backgroundColor: theme.bgElevated }]}
           >
-            <View style={styles.handle} />
+            <View style={[styles.handle, { backgroundColor: theme.border }]} />
 
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -201,9 +199,10 @@ const EventsListDetails: React.FC = () => {
                       onBlur={handleFinishTitleEditing}
                       style={[
                         styles.title,
+                        { color: theme.text },
                         {
                           borderBottomWidth: 1,
-                          borderBottomColor: "#eee",
+                          borderBottomColor: theme.border,
                           flex: 1,
                         },
                       ]}
@@ -221,7 +220,7 @@ const EventsListDetails: React.FC = () => {
                   </View>
                 ) : (
                   <TouchableOpacity onPress={() => setEditingTitle(true)}>
-                    <Text style={styles.title} numberOfLines={1}>
+                    <Text style={[styles.title, { color: theme.text }]} numberOfLines={1}>
                       {displayTitle}
                     </Text>
                   </TouchableOpacity>
@@ -235,9 +234,9 @@ const EventsListDetails: React.FC = () => {
                 useNativeDriver
                 style={styles.metaRow}
               >
-                <EvilIcons name="location" size={16} color="#555" />
-                <Text style={styles.metaText}>{item.location}</Text>
-                <Text style={[styles.metaText, { marginLeft: "auto" }]}>
+                <EvilIcons name="location" size={16} color={theme.textMuted} />
+                <Text style={[styles.metaText, { color: theme.textMuted }]}>{item.location}</Text>
+                <Text style={[styles.metaText, { marginLeft: "auto", color: theme.textMuted }]}>
                   {item.date}
                 </Text>
               </Animatable.View>
@@ -254,11 +253,11 @@ const EventsListDetails: React.FC = () => {
                   <Feather
                     name="edit-2"
                     size={18}
-                    color="#888"
+                    color={theme.textMuted}
                     style={{ marginRight: 10 }}
                   />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.attachLabel}>Attach Text</Text>
+                    <Text style={[styles.attachLabel, { color: theme.text }]}>Attach Text</Text>
                     {editingText ? (
                       <View style={styles.inputContainer}>
                         <TextInput
@@ -267,7 +266,7 @@ const EventsListDetails: React.FC = () => {
                           value={textNote}
                           onChangeText={setTextNote}
                           onBlur={handleFinishNoteEditing}
-                          style={styles.textInput}
+                          style={[styles.textInput, { color: theme.text, borderBottomColor: theme.border }]}
                           placeholder="A picture keeps the scene — your words keep the feeling"
                         />
                         <TouchableOpacity
@@ -299,7 +298,7 @@ const EventsListDetails: React.FC = () => {
                 </View>
               </Animatable.View>
 
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
 
               <Animatable.View
                 animation={fadeInBottom}
@@ -312,11 +311,11 @@ const EventsListDetails: React.FC = () => {
                   <Ionicons
                     name="mic-outline"
                     size={20}
-                    color="#888"
+                    color={theme.textMuted}
                     style={{ marginRight: 10 }}
                   />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.attachLabel}>Attach Voice</Text>
+                    <Text style={[styles.attachLabel, { color: theme.text }]}>Attach Voice</Text>
                     <Text style={styles.attachPlaceholder}>
                       {hasVoice
                         ? "Recording #1 — tap to play"
@@ -324,12 +323,12 @@ const EventsListDetails: React.FC = () => {
                     </Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.micBtn}>
-                  <Ionicons name="mic" size={18} color="#888" />
+                <TouchableOpacity style={[styles.micBtn, { backgroundColor: theme.surfaceHigh }]}>
+                  <Ionicons name="mic" size={18} color={theme.textMuted} />
                 </TouchableOpacity>
               </Animatable.View>
 
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: theme.divider }]} />
 
               <Animatable.View
                 animation={fadeInBottom}
@@ -342,10 +341,10 @@ const EventsListDetails: React.FC = () => {
                   <Ionicons
                     name="people-outline"
                     size={20}
-                    color="#888"
+                    color={theme.textMuted}
                     style={{ marginRight: 10 }}
                   />
-                  <Text style={styles.attachLabel}>People</Text>
+                  <Text style={[styles.attachLabel, { color: theme.text }]}>People</Text>
                 </View>
                 <View style={styles.peopleRow}>
                   {people.map((p) => (
@@ -415,7 +414,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 16,
   },

@@ -1,3 +1,4 @@
+import { useTheme } from "@/hooks/use-theme";
 import { EvilIcons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import { Image } from "expo-image";
@@ -39,6 +40,7 @@ const PAGE_SIZE = 25;
 export default function SwipeScreen() {
   const router = useRouter();
   const isFocused = useIsFocused();
+  const theme = useTheme();
   const [data, setData] = React.useState<any[]>([]);
   const [isIndexing, setIsIndexing] = React.useState(true);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false); // To prevent duplicate calls
@@ -151,9 +153,9 @@ export default function SwipeScreen() {
 
   if (isIndexing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#000" />
-        <Text style={{ marginTop: 10 }}>Opening your vault...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.bg }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
+        <Text style={{ marginTop: 10, color: theme.textMuted }}>Opening your vault...</Text>
       </View>
     );
   }
@@ -174,7 +176,7 @@ export default function SwipeScreen() {
               setActiveIndex(index - 1);
           }}
         >
-          <SafeAreaView style={styles.container}>
+          <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
             <StatusBar hidden />
 
             <View style={styles.overflowContainer}>
@@ -192,10 +194,10 @@ export default function SwipeScreen() {
               >
                 {data.map((item, i) => (
                   <View key={`${item.id}-${i}`} style={styles.itemContainer}>
-                    <Text style={styles.titleText}>
+                    <Text style={[styles.titleText, { color: theme.text }]}>
                       {item.title || `Memory #${i + 1}`}
                     </Text>
-                    <Text style={styles.dateText}>
+                    <Text style={[styles.dateText, { color: theme.textMuted }]}>
                       {new Date(item.creationTime).toLocaleDateString()}
                     </Text>
                   </View>
@@ -277,7 +279,7 @@ export default function SwipeScreen() {
             {/* Loading Indicator for next page */}
             {isLoadingMore && (
               <View style={styles.bottomLoader}>
-                <ActivityIndicator size="small" color="#999" />
+                <ActivityIndicator size="small" color={theme.accent} />
               </View>
             )}
           </SafeAreaView>
@@ -288,7 +290,7 @@ export default function SwipeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   overflowContainer: {
     height: OVERFLOW_HEIGHT,
@@ -308,7 +310,7 @@ const styles = StyleSheet.create({
     width: ITEM_WIDTH,
     height: ITEM_HEIGHT,
     borderRadius: 14,
-    backgroundColor: "#eee",
+    backgroundColor: "#222",
   },
   heartBadge: {
     position: "absolute",

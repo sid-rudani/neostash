@@ -8,6 +8,8 @@ import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useEffect } from "react";
+import { registerBackgroundSync } from "@/components/syncQueue";
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -15,6 +17,10 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    registerBackgroundSync();
+  }, []);
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>

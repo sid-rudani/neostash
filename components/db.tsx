@@ -111,7 +111,7 @@ export const getPhotoMetadata = async (id: string): Promise<PhotoMetadata | null
 
 export const updatePhotoMetadata = async (
     id: string,
-    data: { isLiked?: number; note?: string; title?: string }
+    data: { isLiked?: number; note?: string; title?: string; embedding?: number[] }
 ) => {
     const db = await SQLite.openDatabaseAsync(DB_NAME);
 
@@ -120,13 +120,15 @@ export const updatePhotoMetadata = async (
       UPDATE photos 
       SET isLiked = COALESCE(?, isLiked), 
           note = COALESCE(?, note), 
-          title = COALESCE(?, title)
+          title = COALESCE(?, title),
+          embedding = COALESCE(?, embedding)
       WHERE id = ?
   `,
         [
             data.isLiked !== undefined ? data.isLiked : null,
             data.note !== undefined ? data.note : null,
             data.title !== undefined ? data.title : null,
+            data.embedding ? JSON.stringify(data.embedding) : null,
             id,
         ]
     );
@@ -153,3 +155,31 @@ export const getFavoritePhotos = async (): Promise<PhotoMetadata[]> => {
     );
     return results;
 };
+
+export const semanticSearchByVector = async (textEmbedding: number[]): Promise<string[]> => {
+    const db = await SQLite.openDatabaseAsync(DB_NAME);
+    const photos = await db.getAllAsync<{ id: string; embedding: string | null }>(
+        `SELECT id, embedding FROM photos WHERE embedding IS NOT NULL`
+    );
+
+    const matches = photos.map(photo => {
+       try {
+        const photoEmb = JSON.parse(photo.embedding!);
+        const sim = cosineSimilarity(textEmbedding, photoEmb);
+        return { id: photo.id, sim };
+       } catch(e) { return {id: photo.id, sim: -1}; }
+    });
+
+    matches.sort((a, b) => b.sim - a.sim);
+    return matches.slice(0, 20).map(m => m.id);
+};
+
+function cosineSimilarity(A: number[], B: number[]) {
+    let dotProduct = 0, normA = 0, normB = 0;
+    for (let i = 0; i < A.length; i++) {
+        dotProduct += A[i] * B[i];
+        normA += A[i] * A[i];
+        normB += B[i] * B[i];
+    }
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
